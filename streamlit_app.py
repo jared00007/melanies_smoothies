@@ -1,6 +1,7 @@
 # Import python packages
 import streamlit as st
 from snowflake.snowpark.functions import col
+import requests
 
 # Write directly to the app
 st.title(f":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
@@ -30,10 +31,11 @@ if ingredients_list:
     # Escape single quotes for SQL safety (Snowflake uses '' to represent a single quote inside a string)
     ingredients_escaped = ingredients_string.replace("'", "''")
     name_escaped = name_on_order.replace("'", "''")
-
+    smoothiefroot_response = requests.get("https://my.smoothiefroot.com/")
+    st.text(smoothiefroot_response)
     # Correct INSERT statement: specify both columns and properly quote values
     my_insert_stmt = (
-        "INSERT INTO smoothies.public.orders (ingredients, name_on_order) "
+        "INSERT INTO smoothies.public.orders (ingredients, name_on_order)"
         f"VALUES ('{ingredients_escaped}', '{name_escaped}');"
     )
 
