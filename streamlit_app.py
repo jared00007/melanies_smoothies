@@ -1,9 +1,14 @@
 # Import python packages
 import streamlit as st
 from snowflake.snowpark.functions import col
+import requests  # <-- added for API call
 
 st.title(":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
 st.write("Choose the fruits you want in your custom Smoothie")
+
+# Fetch watermelon info from Smoothiefroot API
+smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
+st.text(smoothiefroot_response.text)  # display API response content
 
 # User input
 name_on_order = st.text_input('Name on Smoothie')
