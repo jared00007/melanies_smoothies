@@ -2,6 +2,7 @@
 import streamlit as st
 from snowflake.snowpark.functions import col
 import requests
+import urllib.parse
 
 # Write directly to the app
 st.title(f":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
@@ -19,18 +20,25 @@ rows = session.table("smoothies.public.fruit_options").select(col('fruit_name'))
 fruit_options = [r['FRUIT_NAME'] for r in rows]
 
 ingredients_list = st.multiselect(
-    'Choose up to 5 ingredients:'
-    , fruit_options
-    , max_selections=5
-    )
+    'Choose up to 5 ingredients:',
+    fruit_options,
+    max_selections=5
+)
 
 if ingredients_list:
-    ingredients_string = ''
-    
-    for ingredients_string = " ".join(ingredients_list)
-        st.header(fruit_chosen + 'Nutrition Information')
-        smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/" + chosen_fruit)
+    # Build ingredients string (trim trailing space)
+    ingredients_string = " ".join(ingredients_list).strip()
+
+    # Show nutrition info for each chosen fruit (URL-encode names)
+    for fruit_chosen in ingredients_list:
+        encoded_fruit = urllib.parse.quote(fruit_chosen)
+        st.header(fruit_chosen + ' Nutrition Information')
+        smoothiefroot_response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{encoded_fruit}")
         st_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+
+    # Escape single quotes for SQL safety (Snowflake uses '' to represent a single quote inside a string)
+    ingredients_escaped = ingredients_string.replace("'", "''")
+    name_escaped = name_on_order.replace("'", "''")
 
     # Correct INSERT statement: specify both columns and properly quote values
     my_insert_stmt = (
