@@ -29,7 +29,7 @@ if ingredients_list:
     ingredients_escaped = ingredients_string.replace("'", "''")
     name_escaped = name_on_order.replace("'", "''")
     smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
-        st_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+    st_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
 
     # Correct INSERT statement: specify both columns and properly quote values
     my_insert_stmt = (
