@@ -3,7 +3,6 @@ import re
 import streamlit as st
 from snowflake.snowpark.functions import col
 import requests
-import urllib.parse
 
 st.title(":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
 st.write("Choose the fruits you want in your custom Smoothie")
@@ -41,7 +40,7 @@ if len(ingredients_list) > 5:
     st.warning("Please select up to 5 ingredients only.")
     ingredients_list = ingredients_list[:5]
 
-# improved candidate generator for API search terms
+# improved candidate generator for API search terms (includes pluralization)
 def build_search_candidates(term: str):
     """
     Return a list of candidate search tokens to try against the API,
@@ -52,17 +51,17 @@ def build_search_candidates(term: str):
 
     t = term.strip()
 
-    # base variants
     variants = []
-    variants.append(t)                       # original with case
-    variants.append(t.lower())               # lowercase
-    # common space-handling
+    # basic variants
+    variants.append(t)                       # original
+    variants.append(t.lower())
+    # spacing variants
     variants.append(t.replace(" ", ""))      # remove spaces -> dragonfruit
     variants.append(t.replace(" ", "-"))     # hyphen -> dragon-fruit
     variants.append(t.replace(" ", "_"))     # underscore -> dragon_fruit
-    variants.append(t.lower().replace(" ", ""))   # lowercase compact
-    variants.append(t.lower().replace(" ", "-"))  # lowercase hyphen
-    variants.append(t.lower().replace(" ", "_"))  # lowercase underscore
+    variants.append(t.lower().replace(" ", ""))
+    variants.append(t.lower().replace(" ", "-"))
+    variants.append(t.lower().replace(" ", "_"))
 
     # punctuation-stripped compact form (letters+numbers only)
     compact = re.sub(r'[^A-Za-z0-9]', '', t)
@@ -70,10 +69,38 @@ def build_search_candidates(term: str):
         variants.append(compact)
         variants.append(compact.lower())
 
-    # also try title-cased compact (e.g., DragonFruit)
+    # title-cased compact (e.g., DragonFruit)
     title_compact = ''.join(word.capitalize() for word in re.split(r'\s+', t))
     if title_compact:
         variants.append(title_compact)
+
+    # pluralization: try likely plural and singular variants
+    lower_t = t.lower()
+    if not lower_t.endswith('s'):
+        # add plural
+        variants.append(t + 's')
+        variants.append(lower_t + 's')
+        # if ends with 'y' -> 'ies' (berry -> berries)
+        if lower_t.endswith('y') and len(lower_t) > 1:
+            variants.append(t[:-1] + 'ies')
+            variants.append(lower_t[:-1] + 'ies')
+    else:
+        # if ends with s, try singular (strip trailing s)
+        variants.append(t[:-1])
+        variants.append(lower_t[:-1])
+        # if endswith 'ies' -> singular 'y'
+        if lower_t.endswith('ies'):
+            variants.append(t[:-3] + 'y')
+            variants.append(lower_t[:-3] + 'y')
+
+    # also try plural forms of compact and punctuation-stripped forms
+    if compact:
+        if not compact.lower().endswith('s'):
+            variants.append(compact + 's')
+            variants.append(compact.lower() + 's')
+        else:
+            variants.append(compact[:-1])
+            variants.append(compact.lower()[:-1])
 
     # de-duplicate while preserving order
     seen = set()
@@ -86,7 +113,6 @@ def build_search_candidates(term: str):
 
 # If user selects ingredients
 if ingredients_list:
-    # show input boxes and API info for each selected fruit
     ingredient_notes = {}
     for idx, ingredient in enumerate(ingredients_list, start=1):
         st.subheader(f"{idx}. {ingredient}")  # subheader for each selection
@@ -102,7 +128,6 @@ if ingredients_list:
         candidates = []
         if search_term_from_db and search_term_from_db != ingredient:
             candidates.extend(build_search_candidates(search_term_from_db))
-        # Always try variants of the displayed ingredient name as well
         candidates.extend(build_search_candidates(ingredient))
 
         # Ensure uniqueness in order
@@ -110,33 +135,36 @@ if ingredients_list:
         candidates = [c for c in candidates if not (c in seen or seen.add(c))]
 
         # Try API calls in order of candidates until success
+        tried_results = []  # tuples of (candidate, status_code, text_sample)
         success = False
-        last_resp_text = None
         working_candidate = None
-        tried_results = []
+        last_resp_text = None
+
         for candidate in candidates:
-            safe_candidate = urllib.parse.quote(candidate, safe='')
+            # Simple URL-safe transform: replace spaces with %20
+            safe_candidate = candidate.replace(" ", "%20")
             api_url = f"https://my.smoothiefroot.com/api/fruit/{safe_candidate}"
             try:
                 resp = requests.get(api_url, timeout=8)
             except requests.RequestException as e:
+                tried_results.append((candidate, "error", str(e)[:200]))
                 last_resp_text = f"Request error for {api_url}: {e}"
-                tried_results.append((candidate, "error", str(e)))
                 continue
 
-            tried_results.append((candidate, resp.status_code, resp.text[:200] if resp.text else ""))
+            sample = resp.text[:200] if resp.text else ""
+            tried_results.append((candidate, resp.status_code, sample))
+
             if resp.status_code == 200:
-                last_resp_text = resp.text
-                # Display as dataframe if possible
+                # Display JSON as dataframe if possible
                 try:
                     st.dataframe(data=resp.json(), use_container_width=True)
                 except Exception:
                     st.text(resp.text)
                 success = True
                 working_candidate = candidate
+                last_resp_text = resp.text
                 break
             else:
-                # remember last response for debug and keep trying next candidate
                 last_resp_text = f"API returned status {resp.status_code} for {api_url}"
 
         if not success:
@@ -145,10 +173,11 @@ if ingredients_list:
             if last_resp_text:
                 st.text(f"Last attempt: {last_resp_text}")
 
-            # --- Added: one-click helper to set SEARCH_ON for Blueberry ---
-            if ingredient.lower() == 'blueberry':
-                if st.button("Set SEARCH_ON = 'Blueberry' for Blueberry", key=f"set_blueberry_{idx}"):
-                    safe_token_for_sql = "blueberry".replace("'", "''")
+            # Specific quick helper for Blueberry -> Blueberries case
+            # If your API uses 'Blueberries' in the URL, this button will set SEARCH_ON accordingly.
+            if ingredient.lower().startswith('blueber'):
+                if st.button("Set SEARCH_ON = 'Blueberries' for this Blueberry row", key=f"set_blueberries_{idx}"):
+                    safe_token_for_sql = "Blueberries".replace("'", "''")
                     safe_fruit_for_sql = ingredient.replace("'", "''")
                     update_sql = (
                         "UPDATE smoothies.public.fruit_options "
@@ -157,12 +186,11 @@ if ingredients_list:
                     )
                     try:
                         session.sql(update_sql).collect()
-                        st.success("Saved SEARCH_ON = 'blueberry' for 'Blueberry' in Snowflake.")
-                        # update local mapping so the rest of this session uses it
-                        search_map[ingredient] = 'blueberry'
+                        st.success("Saved SEARCH_ON = 'Blueberries' for this Blueberry row in Snowflake.")
+                        # update local mapping so further runs in this session use it
+                        search_map[ingredient] = "Blueberries"
                     except Exception as e:
                         st.error(f"Failed to update Snowflake: {e}")
-            # --- end added helper ---
 
             # show tried candidates + statuses for debugging
             for cand, status, sample in tried_results:
@@ -171,7 +199,6 @@ if ingredients_list:
         # If there *is* a working candidate, offer to save it to Snowflake
         if working_candidate:
             if st.button(f"Use '{working_candidate}' as SEARCH_ON for '{ingredient}'", key=f"save_{ingredient}_{idx}"):
-                # caution: requires write privileges
                 safe_token_for_sql = working_candidate.replace("'", "''")
                 safe_fruit_for_sql = ingredient.replace("'", "''")
                 update_sql = (
@@ -182,7 +209,6 @@ if ingredients_list:
                 try:
                     session.sql(update_sql).collect()
                     st.success(f"Saved SEARCH_ON = '{working_candidate}' for '{ingredient}' in Snowflake.")
-                    # update local mapping so further runs in this session use it
                     search_map[ingredient] = working_candidate
                 except Exception as e:
                     st.error(f"Failed to update Snowflake: {e}")
