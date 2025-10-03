@@ -2,7 +2,6 @@
 import streamlit as st
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
-import requests
 
 st.title(":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
 st.write("Choose the fruits you want in your custom Smoothie")
@@ -14,7 +13,9 @@ st.write('The name on your Smoothie will be:', name_on_order)
 # Escape name for SQL
 name_escaped = name_on_order.replace("'", "''")
 
-session = Session.builder.configs(connection_parameters).create()
+# Snowflake session
+# Assumes session is created via environment variables or external config
+session = Session.builder.from_env().create()  # Pulls credentials from environment
 
 # Fetch fruit options from Snowflake
 rows = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME')).collect()
@@ -32,20 +33,6 @@ if len(ingredients_list) > 5:
 if ingredients_list:
     ingredients_string = ' '.join(ingredients_list).strip()
     ingredients_escaped = ingredients_string.replace("'", "''")
-    
-    # Optional API call with safe handling
-    try:
-        response = requests.get("https://my.smoothiefroot.com/")
-        response.raise_for_status()
-        if "application/json" in response.headers.get("Content-Type", ""):
-            data = response.json()
-            st.dataframe(data, use_container_width=True)
-        else:
-            st.info("API did not return JSON data. Skipping display.")
-    except requests.exceptions.RequestException as e:
-        st.warning(f"API request failed: {e}")
-    except ValueError as e:
-        st.warning(f"Could not decode JSON: {e}")
     
     # Insert into Snowflake
     my_insert_stmt = (
