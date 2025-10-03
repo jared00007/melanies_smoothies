@@ -14,17 +14,6 @@ st.write('The name on your Smoothie will be:', name_on_order)
 # Escape name for SQL
 name_escaped = name_on_order.replace("'", "''")
 
-# Snowflake session
-connection_parameters = {
-    "account": "<your_account>",
-    "user": "<your_user>",
-    "password": "<your_password>",
-    "role": "SYSADMIN",
-    "warehouse": "<your_warehouse>",
-    "database": "SMOOTHIES",
-    "schema": "PUBLIC"
-}
-
 session = Session.builder.configs(connection_parameters).create()
 
 # Fetch fruit options from Snowflake
