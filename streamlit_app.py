@@ -145,9 +145,9 @@ if ingredients_list:
             if last_resp_text:
                 st.text(f"Last attempt: {last_resp_text}")
 
-            # --- Added: one-click helper to set SEARCH_ON for Blueberries ---
-            if ingredient.lower() == 'blueberries':
-                if st.button("Set SEARCH_ON = 'blueberry' for Blueberries", key=f"set_blueberry_{idx}"):
+            # --- Added: one-click helper to set SEARCH_ON for Blueberry ---
+            if ingredient.lower() == 'blueberry':
+                if st.button("Set SEARCH_ON = 'blueberry' for Blueberry", key=f"set_blueberry_{idx}"):
                     safe_token_for_sql = "blueberry".replace("'", "''")
                     safe_fruit_for_sql = ingredient.replace("'", "''")
                     update_sql = (
@@ -157,7 +157,7 @@ if ingredients_list:
                     )
                     try:
                         session.sql(update_sql).collect()
-                        st.success("Saved SEARCH_ON = 'blueberry' for 'Blueberries' in Snowflake.")
+                        st.success("Saved SEARCH_ON = 'blueberry' for 'Blueberry' in Snowflake.")
                         # update local mapping so the rest of this session uses it
                         search_map[ingredient] = 'blueberry'
                     except Exception as e:
@@ -200,4 +200,3 @@ if ingredients_list:
     if st.button('Submit Order'):
         session.sql(my_insert_stmt).collect()
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
-
