@@ -34,9 +34,9 @@ if ingredients_list:
     smoothiefroot_response = requests.get("https://my.smoothiefroot.com/")
     st.text(smoothiefroot_response.json())
     # Correct INSERT statement: specify both columns and properly quote values
-    my_insert_stmt = (
-        "INSERT INTO smoothies.public.orders (ingredients, name_on_order)"
-        f"VALUES ('{ingredients_escaped}', '{name_escaped}');"
+    #my_insert_stmt = (
+        #"INSERT INTO smoothies.public.orders (ingredients, name_on_order)"
+        #f"VALUES ('{ingredients_escaped}', '{name_escaped}');"
     )
 
     time_to_insert = st.button('Submit Order')
