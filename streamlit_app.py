@@ -25,10 +25,9 @@ ingredients_list = st.multiselect(
     )
 
 if ingredients_list:
-    ingredients_string = ' '.join(ingredients_list).strip()
-    ingredients_escaped = ingredients_string.replace("'", "''")
-    name_escaped = name_on_order.replace("'", "''")
-    smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
+    ingredients_string += fruit_chosen + ' '
+    st.header(fruit_chosen + 'Nutrition Information')
+    smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/" + chosen_fruit)
     st_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
 
     # Correct INSERT statement: specify both columns and properly quote values
