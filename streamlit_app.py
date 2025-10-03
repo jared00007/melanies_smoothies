@@ -5,6 +5,15 @@ import requests  # <-- added for API call
 
 st.title(":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
 st.write("Choose the fruits you want in your custom Smoothie")
+
+# Fetch watermelon info from Smoothiefroot API
+smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
+
+# Display API response as a dataframe
+sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+
+# st.text(smoothiefroot_response.text)  # <-- commented out
+
 # User input
 name_on_order = st.text_input('Name on Smoothie')
 st.write('The name on your Smoothie will be:', name_on_order)
@@ -37,11 +46,7 @@ if ingredients_list:
         "INSERT INTO smoothies.public.orders (ingredients, name_on_order) "
         f"VALUES ('{ingredients_escaped}', '{name_escaped}');"
     )
-# Fetch watermelon info from Smoothiefroot API
-smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
-
-# Display API response as a dataframe
-sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+    
     # Submit order button
     if st.button('Submit Order'):
         session.sql(my_insert_stmt).collect()
