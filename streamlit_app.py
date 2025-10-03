@@ -1,40 +1,62 @@
-# Import python packages
+\# Import python packages
 import streamlit as st
+from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
 import requests
 
-st.title(f":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
-st.write("""Choose the fruits you want in your custom Smoothie
-    """)
+st.title(":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
+st.write("Choose the fruits you want in your custom Smoothie")
 
+# User input
 name_on_order = st.text_input('Name on Smoothie')
 st.write('The name on your Smoothie will be:', name_on_order)
 
-cnx = st.connection("snowflake")
-session = cnx.session()
+# Escape name for SQL
+name_escaped = name_on_order.replace("'", "''")
 
-rows = session.table("smoothies.public.fruit_options").select(col('fruit_name')).collect()
+# Snowflake session
+connection_parameters = {
+    "account": "<your_account>",
+    "user": "<your_user>",
+    "password": "<your_password>",
+    "role": "SYSADMIN",
+    "warehouse": "<your_warehouse>",
+    "database": "SMOOTHIES",
+    "schema": "PUBLIC"
+}
+
+session = Session.builder.configs(connection_parameters).create()
+
+# Fetch fruit options from Snowflake
+rows = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME')).collect()
 fruit_options = [r['FRUIT_NAME'] for r in rows]
 
-ingredients_list = st.multiselect(
-    'Choose up to 5 ingredients:'
-    , fruit_options
-    , max_selections=5
-    )
+# Multiselect input
+ingredients_list = st.multiselect('Choose up to 5 ingredients:', fruit_options)
 
+if len(ingredients_list) > 5:
+    st.warning("Please select up to 5 ingredients only.")
+    ingredients_list = ingredients_list[:5]
+
+# If user selects ingredients
 if ingredients_list:
     ingredients_string = ' '.join(ingredients_list).strip()
-    
     ingredients_escaped = ingredients_string.replace("'", "''")
-    smoothiefroot_response = requests.get("https://my.smoothiefroot.com/")
-    sf_df = st.dataframe(data=smoothiefroot_response.json(),use_container_width=True)
     
+    # Optional API call
+    try:
+        smoothiefroot_response = requests.get("https://my.smoothiefroot.com/")
+        sf_data = smoothiefroot_response.json()
+        st.dataframe(sf_data, use_container_width=True)
+    except Exception as e:
+        st.error(f"Could not fetch API data: {e}")
+    
+    # Insert into Snowflake
     my_insert_stmt = (
-        "INSERT INTO smoothies.public.orders (ingredients, name_on_order)"
+        "INSERT INTO smoothies.public.orders (ingredients, name_on_order) "
         f"VALUES ('{ingredients_escaped}', '{name_escaped}');"
     )
-    time_to_insert = st.button('Submit Order')
-
-    if time_to_insert:
+    
+    if st.button('Submit Order'):
         session.sql(my_insert_stmt).collect()
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
