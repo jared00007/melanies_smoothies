@@ -1,7 +1,8 @@
 # Import python packages
 import streamlit as st
 from snowflake.snowpark.functions import col
-import requests  # <-- added for API call
+import requests
+import urllib.parse
 
 st.title(":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
 st.write("Choose the fruits you want in your custom Smoothie")
@@ -21,7 +22,10 @@ session = cnx.session()
 try:
     rows = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME'), col('SEARCH_ON')).collect()
     # build mapping FRUIT_NAME -> SEARCH_ON (may be None)
-    search_map = {r['FRUIT_NAME']: (r.get('SEARCH_ON') if r.get('SEARCH_ON') else r['FRUIT_NAME']) for r in rows}
+    search_map = {
+        r['FRUIT_NAME']: (r.get('SEARCH_ON') if r.get('SEARCH_ON') else r['FRUIT_NAME'])
+        for r in rows
+    }
     fruit_options = [r['FRUIT_NAME'] for r in rows]
 except Exception:
     # fallback if SEARCH_ON doesn't exist: just select FRUIT_NAME
@@ -36,6 +40,34 @@ if len(ingredients_list) > 5:
     st.warning("Please select up to 5 ingredients only.")
     ingredients_list = ingredients_list[:5]
 
+# helper: produce simple singular form(s)
+def simple_singular_variants(term: str):
+    variants = []
+    if not term:
+        return variants
+    t = term.strip()
+    variants.append(t)
+    # lowercase and stripped punctuation
+    variants.append(t.lower())
+    # singular heuristics
+    if t.lower().endswith("ies"):
+        variants.append(t[:-3] + "y")           # berries -> berry
+        variants.append((t[:-3] + "y").lower())
+    if t.lower().endswith("es") and not t.lower().endswith("ses"):
+        variants.append(t[:-2])                 # peaches -> peach
+        variants.append(t[:-2].lower())
+    if t.lower().endswith("s"):
+        variants.append(t[:-1])                 # apples -> apple
+        variants.append(t[:-1].lower())
+    # de-duplicate while preserving order
+    seen = set()
+    dedup = []
+    for v in variants:
+        if v and v not in seen:
+            dedup.append(v)
+            seen.add(v)
+    return dedup
+
 # If user selects ingredients
 if ingredients_list:
     # show input boxes and API info for each selected fruit
@@ -48,33 +80,9 @@ if ingredients_list:
         ingredient_notes[ingredient] = note
 
         # determine search term (SEARCH_ON if present, otherwise fruit name)
-        search_term = search_map.get(ingredient, ingredient)
-        # call the Smoothiefroot API for this fruit (safe URL building)
-        api_url = f"https://my.smoothiefroot.com/api/fruit/{search_term}"
-        try:
-            resp = requests.get(api_url, timeout=8)
-            if resp.status_code == 200:
-                # attempt to display JSON as dataframe (if it's a list/dict convertible)
-                try:
-                    sf_df = st.dataframe(data=resp.json(), use_container_width=True)
-                except Exception:
-                    # fallback to raw text if it can't be shown as dataframe
-                    st.text(resp.text)
-            else:
-                st.warning(f"API returned status {resp.status_code} for {ingredient} ({api_url})")
-        except requests.RequestException as e:
-            st.error(f"Failed to fetch nutrient info for {ingredient}: {e}")
+        search_term_from_db = search_map.get(ingredient, ingredient)
 
-    # Prepare SQL insert statement (original behavior)
-    ingredients_string = ' '.join(ingredients_list).strip()
-    ingredients_escaped = ingredients_string.replace("'", "''")
-
-    my_insert_stmt = (
-        "INSERT INTO smoothies.public.orders (ingredients, name_on_order) "
-        f"VALUES ('{ingredients_escaped}', '{name_escaped}');"
-    )
-
-    # Submit order button
-    if st.button('Submit Order'):
-        session.sql(my_insert_stmt).collect()
-        st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+        # Build candidate search terms to try (prefer SEARCH_ON first)
+        candidates = []
+        # If SEARCH_ON exists and is not identical to displayed name, try it first
+        if search_term_from_db and search_term_from_db != ingredi
