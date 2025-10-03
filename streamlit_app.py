@@ -32,7 +32,7 @@ if ingredients_list:
     ingredients_escaped = ingredients_string.replace("'", "''")
     name_escaped = name_on_order.replace("'", "''")
     smoothiefroot_response = requests.get("https://my.smoothiefroot.com/")
-    st.text(smoothiefroot_response)
+    st.text(smoothiefroot_response.json())
     # Correct INSERT statement: specify both columns and properly quote values
     my_insert_stmt = (
         "INSERT INTO smoothies.public.orders (ingredients, name_on_order)"
