@@ -3,4 +3,3 @@
 snowflake-snowpark-python
 streamlit
 requests
-urllib.parse
