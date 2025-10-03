@@ -112,6 +112,8 @@ if ingredients_list:
         # Try API calls in order of candidates until success
         success = False
         last_resp_text = None
+        working_candidate = None
+        tried_results = []
         for candidate in candidates:
             safe_candidate = urllib.parse.quote(candidate, safe='')
             api_url = f"https://my.smoothiefroot.com/api/fruit/{safe_candidate}"
@@ -119,8 +121,10 @@ if ingredients_list:
                 resp = requests.get(api_url, timeout=8)
             except requests.RequestException as e:
                 last_resp_text = f"Request error for {api_url}: {e}"
+                tried_results.append((candidate, "error", str(e)))
                 continue
 
+            tried_results.append((candidate, resp.status_code, resp.text[:200] if resp.text else ""))
             if resp.status_code == 200:
                 last_resp_text = resp.text
                 # Display as dataframe if possible
@@ -129,6 +133,7 @@ if ingredients_list:
                 except Exception:
                     st.text(resp.text)
                 success = True
+                working_candidate = candidate
                 break
             else:
                 # remember last response for debug and keep trying next candidate
@@ -139,6 +144,48 @@ if ingredients_list:
             st.info("If the SEARCH_ON value should be different, update the SEARCH_ON column for this fruit in Snowflake.")
             if last_resp_text:
                 st.text(f"Last attempt: {last_resp_text}")
+
+            # --- Added: one-click helper to set SEARCH_ON for Blueberries ---
+            if ingredient.lower() == 'blueberries':
+                if st.button("Set SEARCH_ON = 'blueberry' for Blueberries", key=f"set_blueberry_{idx}"):
+                    safe_token_for_sql = "blueberry".replace("'", "''")
+                    safe_fruit_for_sql = ingredient.replace("'", "''")
+                    update_sql = (
+                        "UPDATE smoothies.public.fruit_options "
+                        f"SET SEARCH_ON = '{safe_token_for_sql}' "
+                        f"WHERE FRUIT_NAME = '{safe_fruit_for_sql}';"
+                    )
+                    try:
+                        session.sql(update_sql).collect()
+                        st.success("Saved SEARCH_ON = 'blueberry' for 'Blueberries' in Snowflake.")
+                        # update local mapping so the rest of this session uses it
+                        search_map[ingredient] = 'blueberry'
+                    except Exception as e:
+                        st.error(f"Failed to update Snowflake: {e}")
+            # --- end added helper ---
+
+            # show tried candidates + statuses for debugging
+            for cand, status, sample in tried_results:
+                st.text(f"{cand}  →  {status}  {' — ' + sample if sample else ''}")
+
+        # If there *is* a working candidate, offer to save it to Snowflake
+        if working_candidate:
+            if st.button(f"Use '{working_candidate}' as SEARCH_ON for '{ingredient}'", key=f"save_{ingredient}_{idx}"):
+                # caution: requires write privileges
+                safe_token_for_sql = working_candidate.replace("'", "''")
+                safe_fruit_for_sql = ingredient.replace("'", "''")
+                update_sql = (
+                    "UPDATE smoothies.public.fruit_options "
+                    f"SET SEARCH_ON = '{safe_token_for_sql}' "
+                    f"WHERE FRUIT_NAME = '{safe_fruit_for_sql}';"
+                )
+                try:
+                    session.sql(update_sql).collect()
+                    st.success(f"Saved SEARCH_ON = '{working_candidate}' for '{ingredient}' in Snowflake.")
+                    # update local mapping so further runs in this session use it
+                    search_map[ingredient] = working_candidate
+                except Exception as e:
+                    st.error(f"Failed to update Snowflake: {e}")
 
     # Prepare SQL insert statement (original behavior)
     ingredients_string = ' '.join(ingredients_list).strip()
@@ -153,3 +200,4 @@ if ingredients_list:
     if st.button('Submit Order'):
         session.sql(my_insert_stmt).collect()
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+
