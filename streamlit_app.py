@@ -26,9 +26,9 @@ if ingredients_list:
     ingredients_string = ' '.join(ingredients_list).strip()
         
     for ingredients_escaped = ingredients_string.replace("'", "''")
-        name_escaped = name_on_order.replace("'", "''")
         smoothiefroot_response = requests.get("https://my.smoothiefroot.com/")
         sf_df = st.dataframe(data=smoothiefroot_response.json(),use_container_width=True)
+        name_escaped = name_on_order.replace("'", "''")
     
     my_insert_stmt = (
         "INSERT INTO smoothies.public.orders (ingredients, name_on_order)"
