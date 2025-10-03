@@ -1,4 +1,5 @@
 # Import python packages
+import re
 import streamlit as st
 from snowflake.snowpark.functions import col
 import requests
@@ -40,25 +41,40 @@ if len(ingredients_list) > 5:
     st.warning("Please select up to 5 ingredients only.")
     ingredients_list = ingredients_list[:5]
 
-# helper: produce simple singular form(s)
-def simple_singular_variants(term: str):
-    variants = []
+# improved candidate generator for API search terms
+def build_search_candidates(term: str):
+    """
+    Return a list of candidate search tokens to try against the API,
+    ordered from most-preferred to least.
+    """
     if not term:
-        return variants
+        return []
+
     t = term.strip()
-    variants.append(t)
-    # lowercase and stripped punctuation
-    variants.append(t.lower())
-    # singular heuristics
-    if t.lower().endswith("ies"):
-        variants.append(t[:-3] + "y")           # berries -> berry
-        variants.append((t[:-3] + "y").lower())
-    if t.lower().endswith("es") and not t.lower().endswith("ses"):
-        variants.append(t[:-2])                 # peaches -> peach
-        variants.append(t[:-2].lower())
-    if t.lower().endswith("s"):
-        variants.append(t[:-1])                 # apples -> apple
-        variants.append(t[:-1].lower())
+
+    # base variants
+    variants = []
+    variants.append(t)                       # original with case
+    variants.append(t.lower())               # lowercase
+    # common space-handling
+    variants.append(t.replace(" ", ""))      # remove spaces -> dragonfruit
+    variants.append(t.replace(" ", "-"))     # hyphen -> dragon-fruit
+    variants.append(t.replace(" ", "_"))     # underscore -> dragon_fruit
+    variants.append(t.lower().replace(" ", ""))   # lowercase compact
+    variants.append(t.lower().replace(" ", "-"))  # lowercase hyphen
+    variants.append(t.lower().replace(" ", "_"))  # lowercase underscore
+
+    # punctuation-stripped compact form (letters+numbers only)
+    compact = re.sub(r'[^A-Za-z0-9]', '', t)
+    if compact:
+        variants.append(compact)
+        variants.append(compact.lower())
+
+    # also try title-cased compact (e.g., DragonFruit)
+    title_compact = ''.join(word.capitalize() for word in re.split(r'\s+', t))
+    if title_compact:
+        variants.append(title_compact)
+
     # de-duplicate while preserving order
     seen = set()
     dedup = []
@@ -84,13 +100,12 @@ if ingredients_list:
 
         # Build candidate search terms to try (prefer SEARCH_ON first)
         candidates = []
-        # If SEARCH_ON exists and is not identical to displayed name, try it first
         if search_term_from_db and search_term_from_db != ingredient:
-            candidates.extend(simple_singular_variants(search_term_from_db))
+            candidates.extend(build_search_candidates(search_term_from_db))
         # Always try variants of the displayed ingredient name as well
-        candidates.extend(simple_singular_variants(ingredient))
+        candidates.extend(build_search_candidates(ingredient))
 
-        # Ensure unique candidates in order
+        # Ensure uniqueness in order
         seen = set()
         candidates = [c for c in candidates if not (c in seen or seen.add(c))]
 
@@ -110,7 +125,7 @@ if ingredients_list:
                 last_resp_text = resp.text
                 # Display as dataframe if possible
                 try:
-                    sf_df = st.dataframe(data=resp.json(), use_container_width=True)
+                    st.dataframe(data=resp.json(), use_container_width=True)
                 except Exception:
                     st.text(resp.text)
                 success = True
@@ -120,10 +135,8 @@ if ingredients_list:
                 last_resp_text = f"API returned status {resp.status_code} for {api_url}"
 
         if not success:
-            # show helpful debug / next steps for the user
             st.warning(f"Nutrient info not found for '{ingredient}'. Tried: {', '.join(candidates)}.")
             st.info("If the SEARCH_ON value should be different, update the SEARCH_ON column for this fruit in Snowflake.")
-            # display last response text for debugging
             if last_resp_text:
                 st.text(f"Last attempt: {last_resp_text}")
 
