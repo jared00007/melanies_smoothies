@@ -37,8 +37,7 @@ if ingredients_list:
     #my_insert_stmt = (
         #"INSERT INTO smoothies.public.orders (ingredients, name_on_order)"
         #f"VALUES ('{ingredients_escaped}', '{name_escaped}');"
-    )
-
+    #)
     time_to_insert = st.button('Submit Order')
 
     if time_to_insert:
