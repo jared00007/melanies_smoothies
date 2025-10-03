@@ -147,7 +147,7 @@ if ingredients_list:
 
             # --- Added: one-click helper to set SEARCH_ON for Blueberry ---
             if ingredient.lower() == 'blueberry':
-                if st.button("Set SEARCH_ON = 'blueberry' for Blueberry", key=f"set_blueberry_{idx}"):
+                if st.button("Set SEARCH_ON = 'Blueberry' for Blueberry", key=f"set_blueberry_{idx}"):
                     safe_token_for_sql = "blueberry".replace("'", "''")
                     safe_fruit_for_sql = ingredient.replace("'", "''")
                     update_sql = (
