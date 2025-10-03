@@ -1,8 +1,7 @@
 # Import python packages
 import streamlit as st
+from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col
-import requests
-import urllib.parse
 
 # Write directly to the app
 st.title(f":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
@@ -12,29 +11,21 @@ st.write("""Choose the fruits you want in your custom Smoothie
 name_on_order = st.text_input('Name on Smoothie')
 st.write('The name on your Smoothie will be:', name_on_order)
 
-cnx = st.connection("snowflake")
-session = cnx.session()
+session = get_active_session()
 
 # Fetch fruit names from Snowpark and convert to a plain Python list for Streamlit
 rows = session.table("smoothies.public.fruit_options").select(col('fruit_name')).collect()
 fruit_options = [r['FRUIT_NAME'] for r in rows]
 
 ingredients_list = st.multiselect(
-    'Choose up to 5 ingredients:',
-    fruit_options,
-    max_selections=5
-)
+    'Choose up to 5 ingredients:'
+    , fruit_options
+    , max_selections=5
+    )
 
 if ingredients_list:
-    # Build ingredients string (trim trailing space)
-    ingredients_string = " ".join(ingredients_list).strip()
-
-    # Show nutrition info for each chosen fruit (URL-encode names)
-    for fruit_chosen in ingredients_list:
-        encoded_fruit = urllib.parse.quote(fruit_chosen)
-        st.header(fruit_chosen + ' Nutrition Information')
-        smoothiefroot_response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{encoded_fruit}")
-        st_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+    # build ingredients string (trim trailing space)
+    ingredients_string = ' '.join(ingredients_list).strip()
 
     # Escape single quotes for SQL safety (Snowflake uses '' to represent a single quote inside a string)
     ingredients_escaped = ingredients_string.replace("'", "''")
