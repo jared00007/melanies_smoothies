@@ -1,4 +1,4 @@
-\# Import python packages
+# Import python packages
 import streamlit as st
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
@@ -34,6 +34,7 @@ fruit_options = [r['FRUIT_NAME'] for r in rows]
 # Multiselect input
 ingredients_list = st.multiselect('Choose up to 5 ingredients:', fruit_options)
 
+# Enforce selection limit
 if len(ingredients_list) > 5:
     st.warning("Please select up to 5 ingredients only.")
     ingredients_list = ingredients_list[:5]
@@ -43,13 +44,19 @@ if ingredients_list:
     ingredients_string = ' '.join(ingredients_list).strip()
     ingredients_escaped = ingredients_string.replace("'", "''")
     
-    # Optional API call
+    # Optional API call with safe handling
     try:
-        smoothiefroot_response = requests.get("https://my.smoothiefroot.com/")
-        sf_data = smoothiefroot_response.json()
-        st.dataframe(sf_data, use_container_width=True)
-    except Exception as e:
-        st.error(f"Could not fetch API data: {e}")
+        response = requests.get("https://my.smoothiefroot.com/")
+        response.raise_for_status()
+        if "application/json" in response.headers.get("Content-Type", ""):
+            data = response.json()
+            st.dataframe(data, use_container_width=True)
+        else:
+            st.info("API did not return JSON data. Skipping display.")
+    except requests.exceptions.RequestException as e:
+        st.warning(f"API request failed: {e}")
+    except ValueError as e:
+        st.warning(f"Could not decode JSON: {e}")
     
     # Insert into Snowflake
     my_insert_stmt = (
