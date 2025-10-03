@@ -1,45 +1,20 @@
-# Import python packages
-import streamlit as st
-from snowflake.snowpark.functions import col
-import requests  # <-- added for API call
-
-st.title(":cup_with_straw: Customize Your Smoothie!:cup_with_straw:")
-st.write("Choose the fruits you want in your custom Smoothie")
-
-# Fetch watermelon info from Smoothiefroot API
-smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
-
-# Display API response as a dataframe
-sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
-
-# st.text(smoothiefroot_response.text)  # <-- commented out
-
-# User input
-name_on_order = st.text_input('Name on Smoothie')
-st.write('The name on your Smoothie will be:', name_on_order)
-
-# Escape name for SQL
-name_escaped = name_on_order.replace("'", "''")
-
-# Use your existing Snowflake connection from requirements.txt config
-cnx = st.connection("snowflake")
-session = cnx.session()
-
-# Fetch fruit options from Snowflake
-rows = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME')).collect()
-fruit_options = [r['FRUIT_NAME'] for r in rows]
-
-# Multiselect input (limit 5 manually)
-ingredients_list = st.multiselect('Choose up to 5 ingredients:', fruit_options)
-
-if len(ingredients_list) > 5:
-    st.warning("Please select up to 5 ingredients only.")
-    ingredients_list = ingredients_list[:5]
-
 # If user selects ingredients
 if ingredients_list:
     ingredients_string = ' '.join(ingredients_list).strip()
     ingredients_escaped = ingredients_string.replace("'", "''")
+    
+    # Show subheader for selected fruits
+    st.subheader("Nutrient Information for Your Selected Fruit(s):")
+    st.write(", ".join(ingredients_list))
+    
+    # Filter API data for selected fruits (assuming API returns list of dicts)
+    api_data = smoothiefroot_response.json()
+    selected_nutrients = [fruit for fruit in api_data if fruit['name'].lower() in [i.lower() for i in ingredients_list]]
+    
+    if selected_nutrients:
+        st.dataframe(selected_nutrients, use_container_width=True)
+    else:
+        st.info("Nutrient information for selected fruits not available in API.")
     
     # Prepare SQL insert statement
     my_insert_stmt = (
